@@ -8,10 +8,239 @@ screen = pg.display.set_mode((600, 700))
 pg.display.set_caption("Pathfinding")
 width = screen.get_width()
 height = screen.get_height()
-UI_font = pg.font.Font(None, 30)
-    
+score_font = pg.font.Font(None, 60)
+new_round_font = pg.font.Font(None, 40)
+star = pg.image.load('star_2.png')
+b_sp = pg.image.load('backspace_3.png')
+stars = []
 #spacing = 5
 nodes = []
+
+"""
+class System:
+    def __init__(self):
+        self.algorithm = Algorithm()
+        self.player = Player()
+        self.grid = Grid(0, 100, 16 ** 2)
+    
+    def reset(self):
+        # Skal stå for at genstarte programmets tilstand
+        pass
+        
+    # Overvejelse til refactoring.
+    # Kan indeholde et grid, nodes, algoritme og spiller i stedet for at have dem i global scope.
+    # Kan stå for state-logik, f.eks. hvor langt algoritmen er (ligesom self.reverse) og kalde metoder på baggrund af det.
+"""
+
+class Algorithm:
+    def __init__(self):
+        self.closed_list = []
+        self.reverse = False
+        self.solved = False
+
+    def F_cost(self, node, start, goal):
+        f = self.G_cost(node, start) + self.H_cost(node, goal)
+        #print(grid.text(self.G_cost(node, start)))
+        #return self.G_cost(node, start)
+        return f
+
+    def G_cost(self, node, start):
+       
+        dx = abs(int(node.x) - int(start.x)) // int(node.w)
+        dy = abs(int(node.y) - int(start.y)) // int(node.h)
+        
+        if dx > dy:
+            return 14 * dy + 10 * (dx - dy)
+        return 14 * dx + 10 * (dy - dx)
+
+
+        #return (((start.x - node.x) ** 2 + (start.y - node.y) ** 2) ** 0.5)
+        #return int((((start.x - node.x) ** 2 + (start.y - node.y) ** 2) ** 0.5) * 10 * (grid.num_nodes ** 0.5 / width))
+
+    def H_cost(self, node, goal):
+        dx = abs(int(node.x) - int(goal.x)) // int(node.w)
+        dy = abs(int(node.y) - int(goal.y)) // int(node.h)
+        
+        if dx > dy:
+            return 14 * dy + 10 * (dx - dy)
+        return 14 * dx + 10 * (dy - dx)
+
+        #return ((goal.x - node.x) ** 2 + (goal.y - node.y) ** 2) ** 0.5
+    
+    def find_nbs_index(self, node):
+        neighbors = []
+        node_index = nodes.index(node)
+        col = node_index % grid.size
+        row = node_index // grid.size
+
+        def not_obstacle(i):
+            return type(nodes[i]) != Obstacle
+
+        right = node_index + 1
+        left = node_index - 1
+        down = node_index + grid.size
+        up = node_index - grid.size
+
+        # højre
+        if col < grid.size - 1:
+            neighbors.append(right)
+
+        # venstre
+        if col > 0:
+            neighbors.append(left)
+
+        # ned
+        if row < grid.size - 1:
+            neighbors.append(down)
+
+        # op
+        if row > 0:
+            neighbors.append(up)
+
+        # diagonaler
+        if col < grid.size - 1 and row < grid.size - 1:
+            if not_obstacle(right) or not_obstacle(down):
+                neighbors.append(down + 1)
+
+        if col > 0 and row < grid.size - 1:
+            if not_obstacle(left) or not_obstacle(down):
+                neighbors.append(down - 1)
+
+        if col < grid.size - 1 and row > 0:
+            if not_obstacle(right) or not_obstacle(up):
+                neighbors.append(up + 1)
+
+        if col > 0 and row > 0:
+            if not_obstacle(left) or not_obstacle(up):
+                neighbors.append(up - 1)
+
+        return neighbors
+
+    def next_node(self, node):
+        if node and self.reverse == False:
+            goal = [n for n in nodes if type(n) == Goal][0]
+            start = [n for n in nodes if type(n) == Start][0]
+            nb_i = self.find_nbs_index(node)
+            
+            if goal and start:
+                for i in nb_i:
+                    nb = nodes[i]
+
+                    """
+                    if i == nb_i[4]:
+                        pass
+
+                    if i == nb_i[5]:
+                        pass
+
+                    if i == nb_i[6]:
+                        pass
+
+                    if i == nb_i[7]:
+                        pass
+                    """
+
+                    
+                    if type(nb) == Goal:
+                        self.reverse = True
+                        #if type(node) == Closed:
+                            #node = Path(node.x, node.y, node.w, node.h, node.F_cost)
+                        self.path(node)
+                        
+                        #self.path(node)
+                    if type(nb) == Open: 
+                        cost = self.F_cost(nb, start, goal)
+                        
+                        new_nb = Closed(nb.x, nb.y, nb.w, nb.h, nb.chosen, cost)
+                        #new_nb.color = pg.Color("orange") if new_nb.chosen else pg.Color("white")
+                        new_nb.parent = node
+                        self.closed_list.append(new_nb)
+                        
+                        nodes[i] = new_nb
+
+
+    def best_nb(self):
+        if self.closed_list and self.reverse == False:
+            best = min(self.closed_list, key=lambda c_node: c_node.F_cost)
+            self.closed_list.remove(best)
+            #nodes[nodes.index(best)] = Closed(best.x, best.y, best.w, best.h, best.F_cost)
+            #best.color = pg.Color("yellow")
+            #best.color = pg.Color("orange") if best.chosen else pg.Color("white")
+            #self.closed_list = []
+            return best
+    
+    def path(self, node):
+        #print(node.x, node.y)
+        i = nodes.index(node)
+        #print(nodes[i].chosen)
+        nodes[i] = Path(node.x, node.y, node.w, node.h, node.chosen, node.F_cost)
+        #print(nodes[i].chosen)
+        if nodes[i].chosen == True:
+            player.score += 1
+            #nodes[i].color = pg.Color("cyan")
+            #nodes[i].color = pg.Color("orange")
+            nodes[i].color = pg.Color("darkgoldenrod1")
+            #nodes[i].color = pg.Color("gold")
+        
+
+            
+        if node.parent:
+            if type(node.parent) == Closed:
+                #node.parent = Path(node.parent.x, node.parent.y, node.parent.w, node.parent.h, node.parent.F_cost)
+                #nodes[nodes.index(node.parent)] = Path(node.parent.x, node.parent.y, node.parent.w, node.parent.h, node.parent.F_cost)
+                self.path(node.parent)
+            else:
+                pass
+                #print(player.score)
+                #self.reverse = False
+
+        """
+        nb_i = self.find_nbs_index(node)
+        if node:
+            while self.final == False:
+                for i in nb_i:
+                    pass
+
+            if type(nb) == Start:
+                self.final = True
+        """
+        
+    def solve(self):
+        while self.reverse == False:
+            algorithm.next_node(algorithm.best_nb())
+        self.solved = True
+        self.closed_list = []
+        self.reverse = False
+
+class Player:
+    def __init__(self):
+        self.score = 0
+        self.total_guesses = 0
+
+    def choose_path(self, event):
+        if event.type == pg.MOUSEBUTTONDOWN:
+            if event.button == 1:
+                for n in nodes:
+                    if n.rect.collidepoint(event.pos) and type(n) == Open:
+                        if n.chosen == False:
+                            self.total_guesses += 1
+                            grid.make_stars(n, 1)
+
+                        n.chosen = True
+                        #n.color = pg.Color("orange")
+                        
+                        
+
+        if event.type == pg.MOUSEMOTION:
+            for n in nodes:
+                if event.buttons[0] and n.rect.collidepoint(event.pos) and type(n) == Open:
+                    if n.chosen == False:
+                        self.total_guesses += 1
+                        grid.make_stars(n, 1)
+                        
+                    n.chosen = True
+                    #n.color = pg.Color("orange")
+                    
 
 class Grid:
     def __init__(self, x, y, num_nodes):
@@ -21,6 +250,7 @@ class Grid:
         self.n_w = (width / self.num_nodes ** 0.5) * 0.8
         self.n_h = (width / self.num_nodes ** 0.5) * 0.8
         self.spacing = (width  / self.num_nodes ** 0.5) * 0.19
+        self.size = int(self.num_nodes ** 0.5)
         #self.spacing = (((width + height) / 2) / self.num_nodes ** 0.5) * 0.2 + (self.n_w / self.num_nodes ** 0.5)
         #self.n_w = width / (self.num_nodes + spacing) ** 0.5 - spacing + spacing / 2 / self.num_nodes ** 0.5
         #self.n_h = height / (self.num_nodes + spacing) ** 0.5 - spacing + spacing / 2 / self.num_nodes ** 0.5
@@ -85,9 +315,17 @@ class Grid:
         r_i = random.randint(0, int(self.num_nodes ** 0.5 * 3 - 1))
         nodes[r_i] = Goal(nodes[r_i].x, nodes[r_i].y, nodes[r_i].w, nodes[r_i].h)
         nodes[r_i].text = grid.text("B")
-            
-    
-        
+
+    # Giver måske bedre mening et andet sted
+    def make_stars(self, node, star_amount):
+        for _ in range(star_amount):
+            scale = int(grid.n_w / 1.5)
+            #r_scale = random.randint(int(grid.n_w // 2), int(grid.n_w // 1.5))
+            r_x = random.randint(int(node.x), int(node.x + node.w / 3))
+            r_y = random.randint(int(node.y), int(node.y + node.h / 3))
+            node_star = pg.transform.scale(star, (scale, scale))
+            stars.append((node_star, (r_x, r_y)))
+               
 class Open:
     def __init__(self, x, y, w, h):
         self.x = x
@@ -133,10 +371,6 @@ class Open:
             if event.buttons[1] and self.rect.collidepoint(event.pos) and type(self) != Obstacle:
                 nodes[nodes.index(self)] = Obstacle(self.x, self.y, self.w, self.h)
 
-        if event.type == pg.KEYDOWN:
-            if event.key == pg.K_BACKSPACE:
-                grid.make_grid()
-                grid.make_start_and_goal()
         
 
     def update(self):
@@ -182,174 +416,11 @@ class Closed(Open):
 class Path(Closed):
     def __init__(self, x, y, w, h, chosen, F_cost):
         super().__init__(x, y, w, h, chosen, F_cost)
-        self.color = pg.Color("blue")
-        self.text = grid.text(self.F_cost)
+        #self.color = pg.Color("darkslateblue")
+        self.color = pg.Color("darkgoldenrod4")
+        
+        #self.text = grid.text(self.F_cost)
         self.chosen = chosen
-    
-
-class Algorithm:
-    def __init__(self):
-        self.closed_list = []
-        self.reverse = False
-
-
-    def F_cost(self, node, start, goal):
-        f = self.G_cost(node, start) + self.H_cost(node, goal)
-        #print(grid.text(self.G_cost(node, start)))
-        #return self.G_cost(node, start)
-        return f
-
-    def G_cost(self, node, start):
-       
-        dx = abs(int(node.x) - int(start.x)) // int(node.w)
-        dy = abs(int(node.y) - int(start.y)) // int(node.h)
-        
-        if dx > dy:
-            return 14 * dy + 10 * (dx - dy)
-        return 14 * dx + 10 * (dy - dx)
-
-
-        #return (((start.x - node.x) ** 2 + (start.y - node.y) ** 2) ** 0.5)
-        #return int((((start.x - node.x) ** 2 + (start.y - node.y) ** 2) ** 0.5) * 10 * (grid.num_nodes ** 0.5 / width))
-
-    def H_cost(self, node, goal):
-        dx = abs(int(node.x) - int(goal.x)) // int(node.w)
-        dy = abs(int(node.y) - int(goal.y)) // int(node.h)
-        
-        if dx > dy:
-            return 14 * dy + 10 * (dx - dy)
-        return 14 * dx + 10 * (dy - dx)
-
-        #return ((goal.x - node.x) ** 2 + (goal.y - node.y) ** 2) ** 0.5
-    
-    def find_nbs_index(self, node):
-        neighbors = []
-        node_index = nodes.index(node)
-        size = int(grid.num_nodes ** 0.5)
-        col = node_index % size
-        row = node_index // size
-        # højre
-        if col < size - 1:
-            neighbors.append(node_index + 1)
-
-        # venstre
-        if col > 0:
-            neighbors.append(node_index - 1)
-
-        # ned
-        if row < size - 1:
-            neighbors.append(node_index + size)
-
-        # op
-        if row > 0:
-            neighbors.append(node_index - size)
-
-        # diagonaler
-        if col < size - 1 and row < size - 1:
-            neighbors.append(node_index + size + 1)
-
-        if col > 0 and row < size - 1:
-            neighbors.append(node_index + size - 1)
-
-        if col < size - 1 and row > 0:
-            neighbors.append(node_index - size + 1)
-
-        if col > 0 and row > 0:
-            neighbors.append(node_index - size - 1)
-
-        return neighbors
-
-    def next_node(self, node):
-        if node and self.reverse == False:
-            goal = [n for n in nodes if type(n) == Goal][0]
-            start = [n for n in nodes if type(n) == Start][0]
-            nb_i = self.find_nbs_index(node)
-
-            if goal and start:
-                for i in nb_i:
-                    nb = nodes[i]
-
-                    """
-                    if i == nb_i[4]:
-                        pass
-
-                    if i == nb_i[5]:
-                        pass
-
-                    if i == nb_i[6]:
-                        pass
-
-                    if i == nb_i[7]:
-                        pass
-                    """
-
-                    
-                    if type(nb) == Goal:
-                        self.reverse = True
-                        #if type(node) == Closed:
-                            #node = Path(node.x, node.y, node.w, node.h, node.F_cost)
-                        self.path(node)
-                        
-                        #self.path(node)
-                    if type(nb) == Open: 
-                        cost = self.F_cost(nb, start, goal)
-                        
-                        new_nb = Closed(nb.x, nb.y, nb.w, nb.h, nb.chosen, cost)
-                        new_nb.parent = node
-                        self.closed_list.append(new_nb)
-                        
-                        nodes[i] = new_nb
-
-
-
-    def best_nb(self):
-        if self.closed_list and self.reverse == False:
-            best = min(self.closed_list, key=lambda c_node: c_node.F_cost)
-            self.closed_list.remove(best)
-            #nodes[nodes.index(best)] = Closed(best.x, best.y, best.w, best.h, best.F_cost)
-            #best.color = pg.Color("yellow")
-            best.color = pg.Color("orange") if best.chosen else pg.Color("white")
-            #self.closed_list = []
-            return best
-    
-    def path(self, node):
-        #print(node.x, node.y)
-        i = nodes.index(node)
-        #print(nodes[i].chosen)
-        nodes[i] = Path(node.x, node.y, node.w, node.h, node.chosen, node.F_cost)
-        #print(nodes[i].chosen)
-        if nodes[i].chosen == True:
-            player.score += 1
-            nodes[i].color = pg.Color("yellow")
-        
-
-            
-        if node.parent:
-            if type(node.parent) == Closed:
-                #node.parent = Path(node.parent.x, node.parent.y, node.parent.w, node.parent.h, node.parent.F_cost)
-                #nodes[nodes.index(node.parent)] = Path(node.parent.x, node.parent.y, node.parent.w, node.parent.h, node.parent.F_cost)
-                self.path(node.parent)
-            else:
-                pass
-                #print(player.score)
-                #self.reverse = False
-
-        """
-        nb_i = self.find_nbs_index(node)
-        if node:
-            while self.final == False:
-                for i in nb_i:
-                    pass
-
-            if type(nb) == Start:
-                self.final = True
-        """
-        
-    def solve(self):
-        while self.reverse == False:
-            algorithm.next_node(algorithm.best_nb())
-        self.closed_list = []
-        self.reverse = False
 
 class UserInterface:
     def __init__(self):
@@ -358,37 +429,6 @@ class UserInterface:
     def show_score(self):
         pass
 
-
-class System:
-    # Overvejelse til refactoring.
-    # Kan indeholde et grid, nodes, algoritme og spiller i stedet for at have dem i global scope.
-    # Kan stå for state-logik, f.eks. hvor langt algoritmen er (ligesom self.reverse) og kalde metoder på baggrund af det.
-    pass
-
-
-class Player:
-    def __init__(self):
-        self.score = 0
-        self.total_guesses = 0
-
-    def choose_path(self, event):
-        if event.type == pg.MOUSEBUTTONDOWN:
-            if event.button == 1:
-                for n in nodes:
-                    if n.rect.collidepoint(event.pos) and type(n) == Open:
-                        if n.chosen == False:
-                            self.total_guesses += 1
-                        n.chosen = True
-                        n.color = pg.Color("orange")
-
-        if event.type == pg.MOUSEMOTION:
-            for n in nodes:
-                if event.buttons[0] and n.rect.collidepoint(event.pos) and type(n) == Open:
-                    if n.chosen == False:
-                        self.total_guesses += 1
-                    n.chosen = True
-                    n.color = pg.Color("orange")
-    
 
 grid = Grid(0, 100, 16 ** 2)
 algorithm = Algorithm()
@@ -403,7 +443,9 @@ running = True
 
 while running:
     screen.fill(pg.Color("black"))
+
     for event in pg.event.get():
+        
         for n in nodes:
             n.mouse(event)
         player.choose_path(event)
@@ -415,9 +457,15 @@ while running:
                         algorithm.next_node(n)
                     if type(n) == Closed:
                         closed_exists = True
-                if closed_exists:
+                if closed_exists and not algorithm.solved:
                     algorithm.solve()
                     #algorithm.next_node(algorithm.best_nb())
+
+            if event.key == pg.K_BACKSPACE:
+                algorithm.solved = False
+                grid.make_grid()
+                grid.make_start_and_goal()
+                stars = []
 
 
         if event.type == pg.QUIT:
@@ -425,11 +473,23 @@ while running:
 
     for n in nodes:
         n.update()
-    
+        
+    for s in stars:
+        screen.blit(s[0], s[1])
+
     # UI
-    
-    UI_text = UI_font.render(f"{player.score}/{player.total_guesses}", True, pg.Color("white"))
-    screen.blit(UI_text, (20, 20))
+    #pg.Rect()
+    UI_star = pg.transform.scale(star, (50, 50))
+    screen.blit(UI_star, (20, 25))
+
+    score_text = score_font.render(f"{player.score}/{player.total_guesses}", True, pg.Color("white"))
+    screen.blit(score_text, (80, 35))
+
+    b_sp = pg.transform.scale(b_sp, (50 * 2.5, 50))
+    screen.blit(b_sp, (width - 150, 20))
+
+    new_round_text = new_round_font.render("Ny runde", True, pg.Color("white"))
+    screen.blit(new_round_text, (450, 70))
 
     pg.display.flip()
     clock.tick(60)
