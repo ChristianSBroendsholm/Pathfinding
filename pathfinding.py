@@ -1,47 +1,100 @@
 import pygame as pg
 import random
 
-
-pg.init()
-clock = pg.time.Clock()
-screen = pg.display.set_mode((600, 700))
-pg.display.set_caption("Pathfinding")
-width = screen.get_width()
-height = screen.get_height()
-score_font = pg.font.Font(None, 60)
-new_round_font = pg.font.Font(None, 40)
-star = pg.image.load('star_2.png')
-b_sp = pg.image.load('backspace_3.png')
-stars = []
-#spacing = 5
-nodes = []
-
-"""
-class System:
+class Game:
     def __init__(self):
+        pg.init()
+        pg.display.set_caption("A Starry Path")
+        self.clock = pg.time.Clock()
+        # Disse kan evt. være i Display:
+        self.screen = pg.display.set_mode((600, 700)) 
+        self.width = self.screen.get_width()
+        self.height = self.screen.get_height()
+
+        self.running = True
+
+    def setup(self):
         self.algorithm = Algorithm()
+        self.display = Display()
         self.player = Player()
         self.grid = Grid(0, 100, 16 ** 2)
-    
-    def reset(self):
-        # Skal stå for at genstarte programmets tilstand
-        pass
+        self.grid.make_start_and_goal()
+
+    def run(self):
+        while self.running:
+            self.draw()
+            self.events()
+
+            pg.display.flip()
+            self.clock.tick(60)
+
+    def draw(self):
+        self.screen.fill(pg.Color("black"))
+
+        for n in self.grid.nodes:
+            n.draw()
+        
+        for s in self.display.stars:
+            self.screen.blit(s[0], s[1])
+        
+        self.display.draw_UI()
+
+
+    def events(self):
+        for event in pg.event.get():
+        
+            for n in self.grid.nodes:
+                n.mouse(event)
+            self.player.choose_path(event)
+
+            if event.type == pg.MOUSEBUTTONDOWN:
+                if self.display.backspace_rect.collidepoint(event.pos):
+                    self.restart()
+
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_SPACE:
+                    closed_exists = False
+                    for n in self.grid.nodes:
+                        if type(n) == Start:
+                            self.algorithm.next_node(n)
+                        if type(n) == Closed:
+                            closed_exists = True
+                    if closed_exists and not self.algorithm.solved:
+                        self.algorithm.solve()
+
+                        # For manuel løsning
+                        #self.algorithm.next_node(algorithm.best_nb())
+
+                if event.key == pg.K_BACKSPACE:
+                    self.restart()
+
+            if event.type == pg.QUIT:
+                self.running = False
+        
+    def restart(self):
+        self.algorithm.solved = False
+        self.grid.make_grid()
+        self.grid.make_start_and_goal()
+        self.display.stars = []
+
+        self.player.score = 0 # Disse kan evt. fjernes for at vise totale point
+        self.player.total_guesses = 0 
+
+        self.algorithm.iterations = 0
         
     # Overvejelse til refactoring.
     # Kan indeholde et grid, nodes, algoritme og spiller i stedet for at have dem i global scope.
     # Kan stå for state-logik, f.eks. hvor langt algoritmen er (ligesom self.reverse) og kalde metoder på baggrund af det.
-"""
 
 class Algorithm:
     def __init__(self):
         self.closed_list = []
         self.reverse = False
         self.solved = False
+        self.iterations = 0
 
     def F_cost(self, node, start, goal):
         f = self.G_cost(node, start) + self.H_cost(node, goal)
-        #print(grid.text(self.G_cost(node, start)))
-        #return self.G_cost(node, start)
         return f
 
     def G_cost(self, node, start):
@@ -53,10 +106,6 @@ class Algorithm:
             return 14 * dy + 10 * (dx - dy)
         return 14 * dx + 10 * (dy - dx)
 
-
-        #return (((start.x - node.x) ** 2 + (start.y - node.y) ** 2) ** 0.5)
-        #return int((((start.x - node.x) ** 2 + (start.y - node.y) ** 2) ** 0.5) * 10 * (grid.num_nodes ** 0.5 / width))
-
     def H_cost(self, node, goal):
         dx = abs(int(node.x) - int(goal.x)) // int(node.w)
         dy = abs(int(node.y) - int(goal.y)) // int(node.h)
@@ -64,49 +113,47 @@ class Algorithm:
         if dx > dy:
             return 14 * dy + 10 * (dx - dy)
         return 14 * dx + 10 * (dy - dx)
-
-        #return ((goal.x - node.x) ** 2 + (goal.y - node.y) ** 2) ** 0.5
     
     def find_nbs_index(self, node):
         neighbors = []
-        node_index = nodes.index(node)
-        col = node_index % grid.size
-        row = node_index // grid.size
+        node_index = game.grid.nodes.index(node)
+        col = node_index % game.grid.size
+        row = node_index // game.grid.size
 
         def not_obstacle(i):
-            return type(nodes[i]) != Obstacle
+            return type(game.grid.nodes[i]) != Obstacle
 
         right = node_index + 1
         left = node_index - 1
-        down = node_index + grid.size
-        up = node_index - grid.size
+        down = node_index + game.grid.size
+        up = node_index - game.grid.size
 
-        # højre
-        if col < grid.size - 1:
+        # Højre
+        if col < game.grid.size - 1:
             neighbors.append(right)
 
-        # venstre
+        # Venstre
         if col > 0:
             neighbors.append(left)
 
-        # ned
-        if row < grid.size - 1:
+        # Ned
+        if row < game.grid.size - 1:
             neighbors.append(down)
 
-        # op
+        # Op
         if row > 0:
             neighbors.append(up)
 
-        # diagonaler
-        if col < grid.size - 1 and row < grid.size - 1:
+        # Diagonaler
+        if col < game.grid.size - 1 and row < game.grid.size - 1:
             if not_obstacle(right) or not_obstacle(down):
                 neighbors.append(down + 1)
 
-        if col > 0 and row < grid.size - 1:
+        if col > 0 and row < game.grid.size - 1:
             if not_obstacle(left) or not_obstacle(down):
                 neighbors.append(down - 1)
 
-        if col < grid.size - 1 and row > 0:
+        if col < game.grid.size - 1 and row > 0:
             if not_obstacle(right) or not_obstacle(up):
                 neighbors.append(up + 1)
 
@@ -118,99 +165,87 @@ class Algorithm:
 
     def next_node(self, node):
         if node and self.reverse == False:
-            goal = [n for n in nodes if type(n) == Goal][0]
-            start = [n for n in nodes if type(n) == Start][0]
+            goal = [n for n in game.grid.nodes if type(n) == Goal][0]
+            start = [n for n in game.grid.nodes if type(n) == Start][0]
             nb_i = self.find_nbs_index(node)
             
             if goal and start:
                 for i in nb_i:
-                    nb = nodes[i]
+                    nb = game.grid.nodes[i]
 
-                    """
-                    if i == nb_i[4]:
-                        pass
-
-                    if i == nb_i[5]:
-                        pass
-
-                    if i == nb_i[6]:
-                        pass
-
-                    if i == nb_i[7]:
-                        pass
-                    """
-
-                    
                     if type(nb) == Goal:
                         self.reverse = True
-                        #if type(node) == Closed:
-                            #node = Path(node.x, node.y, node.w, node.h, node.F_cost)
                         self.path(node)
                         
-                        #self.path(node)
                     if type(nb) == Open: 
                         cost = self.F_cost(nb, start, goal)
-                        
                         new_nb = Closed(nb.x, nb.y, nb.w, nb.h, nb.chosen, cost)
-                        #new_nb.color = pg.Color("orange") if new_nb.chosen else pg.Color("white")
                         new_nb.parent = node
                         self.closed_list.append(new_nb)
-                        
-                        nodes[i] = new_nb
-
+                        game.grid.nodes[i] = new_nb
 
     def best_nb(self):
         if self.closed_list and self.reverse == False:
             best = min(self.closed_list, key=lambda c_node: c_node.F_cost)
             self.closed_list.remove(best)
-            #nodes[nodes.index(best)] = Closed(best.x, best.y, best.w, best.h, best.F_cost)
-            #best.color = pg.Color("yellow")
-            #best.color = pg.Color("orange") if best.chosen else pg.Color("white")
-            #self.closed_list = []
             return best
     
     def path(self, node):
-        #print(node.x, node.y)
-        i = nodes.index(node)
-        #print(nodes[i].chosen)
-        nodes[i] = Path(node.x, node.y, node.w, node.h, node.chosen, node.F_cost)
-        #print(nodes[i].chosen)
-        if nodes[i].chosen == True:
-            player.score += 1
-            #nodes[i].color = pg.Color("cyan")
-            #nodes[i].color = pg.Color("orange")
-            nodes[i].color = pg.Color("darkgoldenrod1")
-            #nodes[i].color = pg.Color("gold")
+        i = game.grid.nodes.index(node)
+        game.grid.nodes[i] = Path(node.x, node.y, node.w, node.h, node.chosen, node.F_cost)
         
-
+        if game.grid.nodes[i].chosen == True:
+            game.player.score += 1
+            game.grid.nodes[i].color = pg.Color("darkgoldenrod1")
             
         if node.parent:
             if type(node.parent) == Closed:
-                #node.parent = Path(node.parent.x, node.parent.y, node.parent.w, node.parent.h, node.parent.F_cost)
-                #nodes[nodes.index(node.parent)] = Path(node.parent.x, node.parent.y, node.parent.w, node.parent.h, node.parent.F_cost)
                 self.path(node.parent)
-            else:
-                pass
-                #print(player.score)
-                #self.reverse = False
-
-        """
-        nb_i = self.find_nbs_index(node)
-        if node:
-            while self.final == False:
-                for i in nb_i:
-                    pass
-
-            if type(nb) == Start:
-                self.final = True
-        """
         
     def solve(self):
-        while self.reverse == False:
-            algorithm.next_node(algorithm.best_nb())
+        while self.reverse == False and self.iterations < game.grid.num_nodes:
+            self.next_node(self.best_nb())
+            self.iterations += 1
+
         self.solved = True
         self.closed_list = []
         self.reverse = False
+
+        if self.iterations >= game.grid.num_nodes:
+            game.restart()
+        
+
+class Display:
+    def __init__(self):
+        self.stars = []
+        self.star = pg.image.load('star_2.png')
+        self.UI_star = pg.transform.scale(self.star, (50, 50))
+        
+        # Stjernen bruges ikke kun i UI, men også på gitteret
+        self.backspace = pg.image.load('backspace_3.png')
+        self.backspace = pg.transform.scale(self.backspace, (50 * 2.5, 50))
+        self.backspace_rect = self.backspace.get_rect(topleft=(game.width - 150, 50))
+        
+        self.new_round_text = self.text("Ny runde", size=40, color="white")
+
+    def text(self, text, size = None, color = "black"):
+        # Size kan ikke sættes til størrelsen som parameter, da game endnu ikke er dannet.
+        if size == None:
+            size = int(game.grid.n_w / 1.5)
+        self.font = pg.font.Font(None, int(size))
+        return self.font.render(f"{text}", True, pg.Color(color))
+    
+    def draw_UI(self):
+        
+        game.screen.blit(self.UI_star, (20, 25))
+        
+        self.score_text = self.text(f"{game.player.score}/{game.player.total_guesses}", size=60, color="white")
+        game.screen.blit(self.score_text, (80, 35))
+
+        game.screen.blit(self.backspace, self.backspace_rect)
+        
+        game.screen.blit(self.new_round_text, (450, 20))
+
 
 class Player:
     def __init__(self):
@@ -220,42 +255,31 @@ class Player:
     def choose_path(self, event):
         if event.type == pg.MOUSEBUTTONDOWN:
             if event.button == 1:
-                for n in nodes:
+                for n in game.grid.nodes:
                     if n.rect.collidepoint(event.pos) and type(n) == Open:
                         if n.chosen == False:
                             self.total_guesses += 1
-                            grid.make_stars(n, 1)
-
-                        n.chosen = True
-                        #n.color = pg.Color("orange")
-                        
-                        
+                            game.grid.make_stars(n, 1)
+                        n.chosen = True             
 
         if event.type == pg.MOUSEMOTION:
-            for n in nodes:
+            for n in game.grid.nodes:
                 if event.buttons[0] and n.rect.collidepoint(event.pos) and type(n) == Open:
                     if n.chosen == False:
                         self.total_guesses += 1
-                        grid.make_stars(n, 1)
-                        
-                    n.chosen = True
-                    #n.color = pg.Color("orange")
-                    
+                        game.grid.make_stars(n, 1)
+                    n.chosen = True  
 
 class Grid:
     def __init__(self, x, y, num_nodes):
         self.x = x
         self.y = y
         self.num_nodes = num_nodes
-        self.n_w = (width / self.num_nodes ** 0.5) * 0.8
-        self.n_h = (width / self.num_nodes ** 0.5) * 0.8
-        self.spacing = (width  / self.num_nodes ** 0.5) * 0.19
+        self.n_w = (game.width / self.num_nodes ** 0.5) * 0.8
+        self.n_h = (game.width / self.num_nodes ** 0.5) * 0.8
+        self.spacing = (game.width  / self.num_nodes ** 0.5) * 0.19
         self.size = int(self.num_nodes ** 0.5)
-        #self.spacing = (((width + height) / 2) / self.num_nodes ** 0.5) * 0.2 + (self.n_w / self.num_nodes ** 0.5)
-        #self.n_w = width / (self.num_nodes + spacing) ** 0.5 - spacing + spacing / 2 / self.num_nodes ** 0.5
-        #self.n_h = height / (self.num_nodes + spacing) ** 0.5 - spacing + spacing / 2 / self.num_nodes ** 0.5
-        #self.start_created = False
-        #self.goal_created = False
+        self.nodes = []
 
         self.make_grid()
 
@@ -264,67 +288,36 @@ class Grid:
         return self.font.render(f"{text}", True, pg.Color("black"))
             
     def make_grid(self):
-        nodes.clear()
+        self.nodes.clear()
         for i in range(self.num_nodes):
             n_x = self.x + self.spacing + (self.n_w + self.spacing) * (i % int(self.num_nodes ** 0.5))
             n_y = self.y + self.spacing + (self.n_h + self.spacing) * int(i / int(self.num_nodes ** 0.5))
-            #nodes.append(Open(n_x, n_y, self.n_w, self.n_h))
 
             # Lav obstacle objekter
-            if random.random() > 0.3 - abs((len(nodes) - self.num_nodes / 2) / self.num_nodes): 
-                nodes.append(Open(n_x, n_y, self.n_w, self.n_h))
+            if random.random() > 0.45 - abs((len(self.nodes) - self.num_nodes / 2) / self.num_nodes): 
+                self.nodes.append(Open(n_x, n_y, self.n_w, self.n_h))
             else:
-               nodes.append(Obstacle(n_x, n_y, self.n_w, self.n_h))    
-
-            """
-            # Lav start objekt
-            elif random.random() < 0.3 - abs((len(nodes) - self.num_nodes / 4) / (self.num_nodes * 1)) and self.start_created == False:
-                nodes.append(Start(n_x, n_y, self.n_w, self.n_h))
-                self.start_created = True
-            
-            # Lav goal objekt
-            elif random.random() < abs((len(nodes) - self.num_nodes * 0.75) / (self.num_nodes * 1)) and self.goal_created == False:
-                nodes.append(Goal(n_x, n_y, self.n_w, self.n_h))
-                self.goal_created = True
-            """
-            
-            
-            """
-            # Lav start objekt
-            if random.random() > 0.05 - abs((len(nodes) - self.num_nodes / 4) / (self.num_nodes * 1)):
-                # Forhindrer flere start objekter
-                for i, c in enumerate(nodes):
-                        if type(c) == Start:
-                            nodes[i] = Open(c.x, c.y, c.w, c.h)
-                    nodes[nodes.index(self)] = Start(self.x, self.y, self.w, self.h)
-            """
-
-        """    
-        if not any(isinstance(node, Start) for node in nodes):
-            r_i = random.randint(0, self.num_nodes - 1)
-            nodes[r_i] = Start(nodes[r_i].x, nodes[r_i].y, nodes[r_i].w, nodes[r_i].h)
-        """
+               self.nodes.append(Obstacle(n_x, n_y, self.n_w, self.n_h))
     
     def make_start_and_goal(self):
         # Start laves tilfældigt inden for de tre sidste linjer af gitteret
         r_i = random.randint(int(self.num_nodes - self.num_nodes ** 0.5 * 3 - 1), self.num_nodes - 1)
-        nodes[r_i] = Start(nodes[r_i].x, nodes[r_i].y, nodes[r_i].w, nodes[r_i].h)
-        nodes[r_i].text = grid.text("A")
+        self.nodes[r_i] = Start(self.nodes[r_i].x, self.nodes[r_i].y, self.nodes[r_i].w, self.nodes[r_i].h)
+        self.nodes[r_i].text = game.display.text("A")
 
         # Goal laves tilfældigt inden for de tre første linjer af gitteret
         r_i = random.randint(0, int(self.num_nodes ** 0.5 * 3 - 1))
-        nodes[r_i] = Goal(nodes[r_i].x, nodes[r_i].y, nodes[r_i].w, nodes[r_i].h)
-        nodes[r_i].text = grid.text("B")
+        self.nodes[r_i] = Goal(self.nodes[r_i].x, self.nodes[r_i].y, self.nodes[r_i].w, self.nodes[r_i].h)
+        self.nodes[r_i].text = game.display.text("B")
 
     # Giver måske bedre mening et andet sted
     def make_stars(self, node, star_amount):
         for _ in range(star_amount):
-            scale = int(grid.n_w / 1.5)
-            #r_scale = random.randint(int(grid.n_w // 2), int(grid.n_w // 1.5))
+            scale = int(game.grid.n_w / 1.5)
             r_x = random.randint(int(node.x), int(node.x + node.w / 3))
             r_y = random.randint(int(node.y), int(node.y + node.h / 3))
-            node_star = pg.transform.scale(star, (scale, scale))
-            stars.append((node_star, (r_x, r_y)))
+            node_star = pg.transform.scale(game.display.star, (scale, scale))
+            game.display.stars.append((node_star, (r_x, r_y)))
                
 class Open:
     def __init__(self, x, y, w, h):
@@ -334,47 +327,28 @@ class Open:
         self.h = h
         self.color = pg.Color("white")
         self.rect = pg.Rect(x, y, w, h)
-        #self.surf = pg.Surface((w, h))
         self.text = ""
         self.parent = None
         self.chosen = False # Om spilleren har gættet på denne node som en del af stien
     
     def draw(self):
-        pg.draw.rect(screen, self.color, self.rect)
+        pg.draw.rect(game.screen, self.color, self.rect)
 
         if self.text:
-            screen.blit(self.text, (self.x + self.w / 8, self.y + self.h / 8))
+            game.screen.blit(self.text, (self.x + self.w / 8, self.y + self.h / 8))
     
     # Denne funktion giver bedre mening i Grid, og konverteringen af noder kan være sin egen funktion, da forskellige dele af koden gør det samme.
     def mouse(self, event):
         if event.type == pg.MOUSEBUTTONDOWN:
             if self.rect.collidepoint(event.pos) and type(self) != Obstacle:
-                self.index = nodes.index(self)
-
-                """
-                if event.button == 1:
-                    for i, c in enumerate(nodes):
-                        if type(c) == Start:
-                            nodes[i] = Open(c.x, c.y, c.w, c.h)
-                    nodes[nodes.index(self)] = Start(self.x, self.y, self.w, self.h)
-                """
-
-                if event.button == 3:
-                    for i, c in enumerate(nodes):
-                        if type(c) == Goal:
-                            nodes[i] = Open(c.x, c.y, c.w, c.h)
-                    nodes[self.index] = Goal(self.x, self.y, self.w, self.h)
+                self.index = game.grid.nodes.index(self)
         
         # Køres hver gang musen bevæges, så man kan tegne mange Obstacle objekter.
         if event.type == pg.MOUSEMOTION:
             # Til debugging
             if event.buttons[1] and self.rect.collidepoint(event.pos) and type(self) != Obstacle:
-                nodes[nodes.index(self)] = Obstacle(self.x, self.y, self.w, self.h)
+                game.grid.nodes[game.grid.nodes.index(self)] = Obstacle(self.x, self.y, self.w, self.h)
 
-        
-
-    def update(self):
-        self.draw()
 
 class Obstacle(Open):
     def __init__(self, x, y, w, h):
@@ -384,113 +358,39 @@ class Obstacle(Open):
 class Goal(Open):
     def __init__(self, x, y, w, h):
         super().__init__(x, y, w, h)
-        #self.text = grid.text("B")
         self.color = pg.Color("red")
 
     def draw(self):
-        pg.draw.rect(screen, self.color, self.rect)
+        pg.draw.rect(game.screen, self.color, self.rect)
         
         if self.text:
-            screen.blit(self.text, (self.x + self.w / 3, self.y + self.h / 4))
+            game.screen.blit(self.text, (self.x + self.w / 3, self.y + self.h / 4))
 
 class Start(Open):
     def __init__(self, x, y, w, h):
         super().__init__(x, y, w, h)
-        #self.text = grid.text("A")
         self.color = pg.Color("green")
         
     def draw(self):
-        pg.draw.rect(screen, self.color, self.rect)
+        pg.draw.rect(game.screen, self.color, self.rect)
 
         if self.text:
-            screen.blit(self.text, (self.x + self.w / 3, self.y + self.h / 4))
+            game.screen.blit(self.text, (self.x + self.w / 3, self.y + self.h / 4))
 
 class Closed(Open):
     def __init__(self, x, y, w, h, chosen, F_cost):
         super().__init__(x, y, w, h)
         self.F_cost = F_cost
-        #self.text = grid.text(self.F_cost)
-        #self.color = pg.Color("orange")
         self.chosen = chosen
 
 class Path(Closed):
     def __init__(self, x, y, w, h, chosen, F_cost):
         super().__init__(x, y, w, h, chosen, F_cost)
-        #self.color = pg.Color("darkslateblue")
         self.color = pg.Color("darkgoldenrod4")
-        
-        #self.text = grid.text(self.F_cost)
         self.chosen = chosen
 
-class UserInterface:
-    def __init__(self):
-        pass
-    
-    def show_score(self):
-        pass
 
-
-grid = Grid(0, 100, 16 ** 2)
-algorithm = Algorithm()
-player = Player()
-
-grid.make_start_and_goal()
-#grid.make_grid() # Kaldes først her, da Goal objektet i metoden bruger en Grid metode.
-#grid.F_cost(cells[20], cells[80], cells[200])
-
-running = True
-#cell_list[50] = Goal(cell_list[50].x, cell_list[50].y, cell_list[50].w, cell_list[50].h)
-
-while running:
-    screen.fill(pg.Color("black"))
-
-    for event in pg.event.get():
-        
-        for n in nodes:
-            n.mouse(event)
-        player.choose_path(event)
-        if event.type == pg.KEYDOWN:
-            if event.key == pg.K_SPACE:
-                closed_exists = False
-                for n in nodes:
-                    if type(n) == Start:
-                        algorithm.next_node(n)
-                    if type(n) == Closed:
-                        closed_exists = True
-                if closed_exists and not algorithm.solved:
-                    algorithm.solve()
-                    #algorithm.next_node(algorithm.best_nb())
-
-            if event.key == pg.K_BACKSPACE:
-                algorithm.solved = False
-                grid.make_grid()
-                grid.make_start_and_goal()
-                stars = []
-
-
-        if event.type == pg.QUIT:
-            running = False
-
-    for n in nodes:
-        n.update()
-        
-    for s in stars:
-        screen.blit(s[0], s[1])
-
-    # UI
-    #pg.Rect()
-    UI_star = pg.transform.scale(star, (50, 50))
-    screen.blit(UI_star, (20, 25))
-
-    score_text = score_font.render(f"{player.score}/{player.total_guesses}", True, pg.Color("white"))
-    screen.blit(score_text, (80, 35))
-
-    b_sp = pg.transform.scale(b_sp, (50 * 2.5, 50))
-    screen.blit(b_sp, (width - 150, 20))
-
-    new_round_text = new_round_font.render("Ny runde", True, pg.Color("white"))
-    screen.blit(new_round_text, (450, 70))
-
-    pg.display.flip()
-    clock.tick(60)
-
+if __name__ == "__main__":
+    game = Game()
+    game.setup()
+    game.run()
