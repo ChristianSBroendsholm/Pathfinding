@@ -57,6 +57,9 @@ class Game:
         self.grid.make_start_and_goal()
 
     def run(self):
+        if not self.algorithm.solved:
+            self.algorithm.solve()
+
         while self.running:
             self.draw()
             self.events()
@@ -86,21 +89,24 @@ class Game:
             if event.type == pg.MOUSEBUTTONDOWN:
 
                 if self.display.difficulty_easy.collidepoint(event.pos):
-                    self.set_difficulty(0.1)
+                    self.set_difficulty(0.2)
 
                 elif self.display.difficulty_mid.collidepoint(event.pos):
-                    self.set_difficulty(0.3)
+                    self.set_difficulty(0.4)
 
                 elif self.display.difficulty_hard.collidepoint(event.pos):
-                    self.set_difficulty(0.5)
+                    self.set_difficulty(0.6)
 
                 if self.display.backspace_rect.collidepoint(event.pos):
                     self.restart()
 
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_SPACE:
-                    if not self.algorithm.solved:
-                        self.algorithm.solve()
+                    for n in game.grid.nodes:
+                        if n.state == "path" and n.chosen and not self.player.guessed:
+                            self.player.score += 1
+                    
+                    self.player.guessed = True
 
                 if event.key == pg.K_BACKSPACE:
                     self.restart()
@@ -115,14 +121,18 @@ class Game:
 
     def restart(self):
         self.algorithm = Algorithm()
+        self.algorithm.iterations = 0
+
         self.grid = Grid(0, 100, self.grid.num_nodes, self.grid.obstacle_chance)
         self.grid.make_start_and_goal()
+
         self.display.stars = []
 
         self.player.score = 0
         self.player.total_guesses = 0
+        self.player.guessed = False
 
-        self.algorithm.iterations = 0
+        self.algorithm.solve()
 
 class Algorithm:
     def __init__(self):
@@ -223,6 +233,7 @@ class Algorithm:
                 neighbors.append(diag)
 
         if not neighbors:
+            # Edge case, hvor alle nabonoder er obstacles og derefter ikke er i neighbors listen.
             # Hvis der er ingen naboer, kan spillet ikke komme videre, og spillet genstartes ikke under solve(). 
             game.restart()
 
@@ -293,6 +304,7 @@ class Algorithm:
         self.begin_search()
 
         while not self.solved and self.open_set and self.iterations < game.grid.num_nodes:
+            
             self.step()
             self.iterations += 1
 
@@ -310,8 +322,8 @@ class Display:
         self.star = pg.image.load('star_2.png')
         self.UI_star = pg.transform.scale(self.star, (50, 50))
 
-        self.difficulty_easy = pg.Rect(160, 40, 80, 30)
-        self.difficulty_mid = pg.Rect(255, 40, 80, 30)
+        self.difficulty_easy = pg.Rect(170, 40, 80, 30)
+        self.difficulty_mid = pg.Rect(260, 40, 80, 30)
         self.difficulty_hard = pg.Rect(350, 40, 80, 30)
 
         self.difficulty = 0.3
@@ -341,9 +353,9 @@ class Display:
         pg.draw.rect(self.screen, (200, 200, 80), self.difficulty_mid)
         pg.draw.rect(self.screen, (200, 80, 80), self.difficulty_hard)
 
-        easy_text = self.text("0.1", size=20, color="black")
-        mid_text = self.text("0.3", size=20, color="black")
-        hard_text = self.text("0.5", size=20, color="black")
+        easy_text = self.text("0.2", size=20, color="black")
+        mid_text = self.text("0.4", size=20, color="black")
+        hard_text = self.text("0.6", size=20, color="black")
 
         self.screen.blit(easy_text, easy_text.get_rect(center=self.difficulty_easy.center))
         self.screen.blit(mid_text, mid_text.get_rect(center=self.difficulty_mid.center))
@@ -358,11 +370,12 @@ class Player:
     def __init__(self):
         self.score = 0
         self.total_guesses = 0
+        self.guessed = False
 
     def choose_path(self, event):
         if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
             for n in game.grid.nodes:
-                if n.rect.collidepoint(event.pos) and n.state == "open":
+                if n.rect.collidepoint(event.pos) and (n.state == "open" or n.state == "closed" or n.state == "path"):
                     if not n.chosen:
                         self.total_guesses += 1
                         game.grid.make_stars(n, 1)
@@ -370,7 +383,7 @@ class Player:
 
         if event.type == pg.MOUSEMOTION and event.buttons[0]:
             for n in game.grid.nodes:
-                if n.rect.collidepoint(event.pos) and n.state == "open":
+                if n.rect.collidepoint(event.pos) and (n.state == "open" or n.state == "closed" or n.state == "path"):
                     if not n.chosen:
                         self.total_guesses += 1
                         game.grid.make_stars(n, 1)
@@ -387,7 +400,7 @@ class Grid:
         self.size = int(self.num_nodes ** 0.5)
         self.nodes = []
         self.obstacle_chance = obstacle_chance
-
+    
         self.make_grid(self.obstacle_chance)
 
     def make_grid(self, o_c):
@@ -446,11 +459,13 @@ class Node:
             self.color = pg.Color("green")
         elif self.state == "goal":
             self.color = pg.Color("red")
-        elif self.state == "path":
+        elif self.state == "open":
+            self.color = pg.Color("white")
+        elif game.player.guessed and self.state == "path":
             self.color = pg.Color("darkgoldenrod1") if self.chosen else pg.Color("darkgoldenrod3")
         else:
             self.color = pg.Color("white")
-        
+
         pg.draw.rect(game.display.screen, self.color, self.rect)
 
         if self.text:
