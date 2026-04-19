@@ -2,26 +2,27 @@ import pygame as pg
 import random
 import time
 
-def benchmark(game, runs=100, repeats=20, mode="obstacles"):
-
+def benchmark(game, runs=100, repeats=20, mode="nodes"):
     results = []
 
     for i in range(runs):
 
         if mode == "nodes":
-            num_nodes = (i + 3) ** 2
-            obstacle = 0
+            num_nodes = (i + 3) ** 2 # Øger noder med hvert run
+            obstacle_chance = 0 # Fjerner forhindringer
         elif mode == "obstacles":
             num_nodes = 50 ** 2
-            obstacle = i / runs
+            obstacle_chance = i / runs * 0.6 # Sætter obstacle_chance til højest at være (runs-1) * 0,6.
+            # Et højere maksimum for obstacle_chance øger chancen for 'maximum recursion depth exceeded' error.
+            # Derudover bliver køretiden øget markant.
 
         times = []
 
         for _ in range(repeats):
             start = time.perf_counter()
-
+            # Initialiserer spillet uden Display
             game.algorithm = Algorithm()
-            game.grid = Grid(0, 100, num_nodes, obstacle)
+            game.grid = Grid(0, 100, num_nodes, obstacle_chance)
             game.grid.make_start_and_goal()
 
             game.algorithm.solve()
@@ -30,7 +31,7 @@ def benchmark(game, runs=100, repeats=20, mode="obstacles"):
             times.append(end - start)
 
         avg_time = sum(times) / len(times)
-        results.append((num_nodes, avg_time, obstacle))
+        results.append((num_nodes, avg_time, obstacle_chance))
 
     def fmt(x):
         """Formatterer decimaltal til indsættelse i Excel"""
@@ -38,7 +39,7 @@ def benchmark(game, runs=100, repeats=20, mode="obstacles"):
 
     print("noder;tid;forhindringschance")
 
-    for n, t, o in results:
+    for n, t, o in results: # Bruger tuple unpacking til at få hvert element af hver tuple i results listen.
         print(f"{n};{fmt(t)};{fmt(o)}")
 
 
@@ -53,7 +54,7 @@ class Game:
         self.algorithm = Algorithm()
         self.display = Display(600, 700)
         self.player = Player()
-        self.grid = Grid(0, 100, 16 ** 2, 0.45)
+        self.grid = Grid(0, 100, 16 ** 2, 0.4)
         self.grid.make_start_and_goal()
 
     def run(self):
@@ -115,7 +116,6 @@ class Game:
                 self.running = False
     
     def set_difficulty(self, dif):
-        self.display.difficulty = dif
         self.grid.obstacle_chance = dif
         self.restart()
 
@@ -184,6 +184,7 @@ class Algorithm:
         if ax != bx and ay != by:
             return 14
         return 10
+
 
     def find_nbs_index(self, node):
         neighbors = []
@@ -325,8 +326,6 @@ class Display:
         self.difficulty_easy = pg.Rect(170, 40, 80, 30)
         self.difficulty_mid = pg.Rect(260, 40, 80, 30)
         self.difficulty_hard = pg.Rect(350, 40, 80, 30)
-
-        self.difficulty = 0.3
         
         self.backspace = pg.image.load('backspace_3.png')
         self.backspace = pg.transform.scale(self.backspace, (50 * 2.5, 50))
