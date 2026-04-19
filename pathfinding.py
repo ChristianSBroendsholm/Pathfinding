@@ -12,7 +12,7 @@ def benchmark(game, runs=100, repeats=20, mode="nodes"):
             obstacle_chance = 0 # Fjerner forhindringer
         elif mode == "obstacles":
             num_nodes = 50 ** 2
-            obstacle_chance = i / runs * 0.6 # Sætter obstacle_chance til højest at være (runs-1) * 0,6.
+            obstacle_chance = i / runs * 0.6 # Sætter obstacle_chance til højest at være (1-1/runs) * 0,6.
             # Et højere maksimum for obstacle_chance øger chancen for 'maximum recursion depth exceeded' error.
             # Derudover bliver køretiden øget markant.
 
